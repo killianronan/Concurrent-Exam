@@ -25,7 +25,6 @@
 
 #include <immintrin.h>
 #include <stdio.h>
-#include <emmintrin.h>
 #include "csu33014-annual-q1-code.h"
 
 /****************  routine 0 *******************/
@@ -97,6 +96,7 @@ float vectorized_1(float * restrict a, float * restrict b,
     sum_a_final = sum_a_final + a[i];
     sum_b_final = sum_b_final + b[i];
   }
+  //free allocated mem
   free(sum_a);
   free(sum_b);
   //multiply for result
@@ -151,10 +151,10 @@ void routine_3(float * restrict a, float * restrict b, int size) {
 
 void vectorized_3(float * restrict a, float * restrict b, int size) {
   __m128 aVec, bVec, cmpVec;
-  float zero = 0;
   int remainder = size%4;
   int i;
   for (i = 0; i < size-remainder; i+=4 ) {
+    //load a and b vectors
     aVec = _mm_loadu_ps(&a[i]);
     bVec = _mm_loadu_ps(&b[i]);
     // a[i] < b[i], a[i+1] < b[i+1],...
@@ -187,30 +187,30 @@ void routine_4(float * restrict a, float * restrict b,
   }
 }
 
-// __m128 _mm_shuffle_ps(__m128 a, __m128 b, // shuffle elements of two arrays
-// 	_MM_SHUFFLE(aidx1, aidx2, bidx1, bidx2)) // order makes no fucking sense
-// 					  // = [a[3-aidx1], a[3-aidx2],
-// 					  //    b[3-bidx1], b[3-bidx2]]
 void vectorized_4(float * restrict a, float * restrict b,
 		    float * restrict  c) {
   __m128 aVec, bVec, cVec, mul1, mul2;
   for(int i = 0; i < 2048; i+=4) {
     //load b and c vectors
-    bVec = _mm_load_ps(&b[i]);
-    cVec = _mm_load_ps(&c[i]);
+    bVec = _mm_loadu_ps(&b[i]);
+    cVec = _mm_loadu_ps(&c[i]);
     //vector b*c
     mul1 = _mm_mul_ps(bVec, cVec);
-    //horizontal subtraction on adjacent pairs 
+    //horizontal subtraction on adjacent pairs
+    //b[i]*c[i] - b[i+1]*c[i+1];
     mul1 = _mm_hsub_ps(mul1, mul1);
-    // extract values
-    cVec = _mm_shuffle_ps(cVec, cVec, _MM_SHUFFLE(2, 3, 0, 1));
+    // extract values for c
+    cVec = _mm_shuffle_ps(cVec, cVec, _MM_SHUFFLE(2,3,0,1));
     // b[i]*c[i+1]
     mul2 = _mm_mul_ps(bVec, cVec);
     // b[i]*c[i+1] + b[i+1]*c[i]
     mul2 = _mm_hadd_ps(mul2, mul2);
-    aVec = _mm_shuffle_ps(mul2, mul1, _MM_SHUFFLE(3, 2, 3, 2)); 
-    aVec = _mm_shuffle_ps(aVec, aVec, _MM_SHUFFLE(3, 1, 2, 0));
-    _mm_store_ps(&a[i], aVec);
+    //extract result values
+    aVec = _mm_shuffle_ps(mul2, mul1, _MM_SHUFFLE(3,2,3,2)); 
+    //extract a vector result
+    aVec = _mm_shuffle_ps(aVec, aVec, _MM_SHUFFLE(3,1,2,0));
+    //store result
+    _mm_storeu_ps(&a[i], aVec);
   }
 }
 
@@ -251,6 +251,7 @@ int vectorized_5(unsigned char * restrict a,
     if ( a[i] != b[i] )
       return 0;
   }
+  //return 1 if never equal
   return 1;
 }
 
